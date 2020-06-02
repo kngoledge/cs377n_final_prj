@@ -56,6 +56,9 @@ U8G2_SH1106_128X64_NONAME_F_HW_I2C oled(U8G2_R0, U8X8_PIN_NONE);
 
 #define ULTRASONIC_SENSOR_PIN 6 // pin on which connector is placed NOTE: digital
 #define LIGHT_SENSOR_PIN A0 // put sensor on an analog pin
+#define LEFT_BUTTON
+#define RIGHT_BUTTON
+#define CENTER_BUTTON
 
 #define LIGHT_THRESHOLD_LOW 350
 #define LIGHT_THRESHOLD_HIGH 400
@@ -67,14 +70,14 @@ unsigned long waveTimer;
 Ultrasonic sensor(ULTRASONIC_SENSOR_PIN);
 
 //Events Defitions
-#define EVENT_ULTRA EventManager::kEventUser0
-#define EVENT_LIGHT EventManager::kEventUser1
+#define EVENT_LIGHT  EventManager::kEventUser0
+#define EVENT_BUTTON EventManager::kEventUser1
 
 //Create the Event Manager
 EventManager eventManager;
 
 // Create the different states for the state machine
-enum SystemState_t {INIT, SENSING_INPUT, SLEEP};
+enum SystemState_t {INIT, RECEIVE, DECODE, SEND};
 
 // Create and set a variable to store the current state
 SystemState_t currentState = INIT;
@@ -84,7 +87,6 @@ void setup() {
   //setupWifi();
   //setupOLED();
 
-  eventManager.addListener(EVENT_ULTRA, stateMachine);
   eventManager.addListener(EVENT_LIGHT, stateMachine);
 
   while (!Serial); //wait for serial to connect
@@ -103,6 +105,7 @@ void checkEvents() {
     checkLight();
     waveTimer = millis(); // reset timer
   }
+  checkButtons();
 }
 
 void checkLight() {
@@ -132,12 +135,91 @@ void checkLight() {
     eventManager.queueEvent(EVENT_LIGHT, eventParameter);
   }
 
-//  Serial.print("Last:");
-//  Serial.println(lastLightValue);
-//  Serial.print("This:");
-//  Serial.println(thisLightValue);
+  //  Serial.print("Last:");
+  //  Serial.println(lastLightValue);
+  //  Serial.print("This:");
+  //  Serial.println(thisLightValue);
 
   lastLightValue = thisLightValue;
+}
+
+void checkButtons() {
+  bool eventHappened = false;  // Initialize our eventHappened flag to false
+  int eventParameter = 0;       // Change type as needed
+
+  static int lastLeftButton = LOW;
+  static int lastRightButton = LOW;
+  static int lastCenterButton = LOW;
+
+  int thisLeftButton = digitalRead(LEFT_BUTTON);
+  int thisRightButton = digitalRead(RIGHT_BUTTON);
+  int thisCenterButton = digitalRead(CENTER_BUTTON);
+
+  if (lastLeftButton == lastRightButton == lastCenterButton == LOW) {
+    if (thisLeftButton == HIGH && thisRightButton == thisCenterButton == LOW) {
+      eventHappened = true;
+      eventParameter = 1;
+    }
+    if (thisRightButton == HIGH && thisLeftButton == thisCenterButton == LOW) {
+      eventHappened = true;
+      eventParameter = 2;
+    }
+    if (thisCenterButton == HIGH && thisRightButton == thisLeftButton == LOW) {
+      eventHappened = true;
+      eventParameter = 3;
+    }
+    if (thisRightButton == thisLeftButton == HIGH && thisCenterButton == LOW) {
+      eventHappened = true;
+      eventParameter = 4;
+    }
+    if (thisRightButton == thisCenterButton == HIGH && thisLeftButton == LOW) {
+      eventHappened = true;
+      eventParameter = 5;
+    }
+    if (thisLeftButton == thisCenterButton == HIGH && thisRightButton == LOW) {
+      eventHappened = true;
+      eventParameter = 6;
+    }
+    if (thisLeftButton == thisRightButton == thisCenterButton == HIGH) {
+      eventHappened = true;
+      eventParameter = 7;
+    }
+  }
+
+  if (eventHappened == true) {
+    eventManager.queueEvent(EVENT_BUTTON, eventParameter);
+  }
+
+  lastRightButton = thisRightButton;
+  lastLeftButton = thisLeftButton;
+  lastCenterButton = thisCenterButton;
+}
+
+void sendData(int param) {
+
+  switch (param) {
+    case 1:
+      Serial.println(param);
+      break;
+    case 2:
+      Serial.println(param);
+      break;
+    case 3:
+      Serial.println(param);
+      break;
+    case 4:
+      Serial.println(param);
+      break;
+    case 5:
+      Serial.println(param);
+      break;
+    case 6:
+      Serial.println(param);
+      break;
+    case 7:
+      Serial.println(param);
+      break;
+  }
 }
 
 void setupWifi() {
@@ -195,14 +277,21 @@ void stateMachine(int event, int param) {
     case INIT:
       break;
 
-    case SENSING_INPUT:
-      break;
+    case RECEIVE:
+      if (event == EVENT_BUTTON){
+        nextState = SEND;
+        sendData(param);
+      }
+          break;
 
-    case SLEEP:
-      break;
+      case DECODE:
+        break;
 
-    default:
-      break;
+      case SEND:
+        break;
+
+      default:
+        break;
+    }
+    currentState = nextState;
   }
-  currentState = nextState;
-}
