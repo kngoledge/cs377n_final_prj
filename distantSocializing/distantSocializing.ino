@@ -317,6 +317,18 @@ void stateMachine(int event, int param) {
   currentState = nextState;
 }
 
+
+/* CheckMessage
+    Gets data from feed once and checks if the message is from the other person.
+*/
+void CheckMessage(){
+  getMessage = GetData();
+  if (getMessage.indexOf(your_name) == -1) { // the poster of this message was the other person
+    // display this message onto OLED screen!
+  }
+  // this was a self posted message, ignore
+}
+
 /* GetData
     Sends a get request to the adafruit feed server that is not from the original user and returns getMessage.
     @param none
