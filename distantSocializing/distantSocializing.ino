@@ -296,7 +296,7 @@ void stateMachine(int event, int param) {
 
     case RECEIVE:
       if (event == EVENT_BUTTON) {
-        postMessage = your_name + ": " + sendData(param);
+        postMessage = your_name + ": " + phrase;
         PostData(postMessage);
         nextState = SEND;
       }
@@ -325,6 +325,7 @@ void stateMachine(int event, int param) {
   }
   currentState = nextState;
 }
+
 /* GetData
     Sends a get request to the adafruit feed server that is not from the original user and returns getMessage.
     @param none
