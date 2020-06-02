@@ -306,18 +306,19 @@ void stateMachine(int event, int param) {
       break;
 
     case SEND:
-      if (event == EVENT_BUTTON) {
-        // Every 10s, get advice and print to serial
-        String their_name_and_phrase = GetData();
-        Serial.println("" + their_name_and_phrase);
-        if (their_name_and_phrase.indexOf(your_name) == -1) {
-          // display this message!
+      while (event != EVENT_BUTTON) {
+        
+	// Every 10s, get message and print to serial
+        getMessage = GetData();
+        Serial.println("" + getMessage);
+        if (getMessage.indexOf(your_name) == -1) {
+          // display this message onto OLED screen!
         }
         // this was a self posted message, ignore
         delay(10000);
-        
-        nextState = RECEIVE;
       }
+      // EVENT_BUTTON event occurred[
+      nextState = RECEIVE; 
       break;
 
     default:
