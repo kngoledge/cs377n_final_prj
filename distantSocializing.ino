@@ -54,20 +54,18 @@ U8G2_SH1106_128X64_NONAME_F_HW_I2C oled(U8G2_R0, U8X8_PIN_NONE);
 //  Event & State Variables
 //--------------------------
 
-#define ULTRASONIC_SENSOR_PIN 6 // pin on which connector is placed NOTE: digital
-#define LIGHT_SENSOR_PIN A0 // put sensor on an analog pin
-#define LEFT_BUTTON
-#define RIGHT_BUTTON
-#define CENTER_BUTTON
+#define LIGHT_SENSOR_PIN       A0 // put sensor on an analog pin
+#define LEFT_BUTTON             2
+#define CENTER_BUTTON           4
+#define RIGHT_BUTTON            6
+
 
 #define LIGHT_THRESHOLD_LOW 350
 #define LIGHT_THRESHOLD_HIGH 400
 unsigned long WAVE_DURATION = 200;
+unsigned long BUTTON_DURATION = 100;
 unsigned long waveTimer;
-
-
-//Ultrasonic Sensor Setup
-Ultrasonic sensor(ULTRASONIC_SENSOR_PIN);
+unsigned long buttonTimer;
 
 //Events Defitions
 #define EVENT_LIGHT  EventManager::kEventUser0
@@ -88,11 +86,13 @@ void setup() {
   //setupOLED();
 
   eventManager.addListener(EVENT_LIGHT, stateMachine);
+  eventManager.addListener(EVENT_BUTTON, stateMachine);
 
   while (!Serial); //wait for serial to connect
 
   stateMachine(INIT, 0);
   waveTimer = millis();
+  buttonTimer = millis();
 }
 
 void loop() {
@@ -151,36 +151,43 @@ void checkButtons() {
   static int lastRightButton = LOW;
   static int lastCenterButton = LOW;
 
-  int thisLeftButton = digitalRead(LEFT_BUTTON);
-  int thisRightButton = digitalRead(RIGHT_BUTTON);
+  buttonTimer = millis();
+  int thisLeftButton   = digitalRead(LEFT_BUTTON);
+  int thisRightButton  = digitalRead(RIGHT_BUTTON);
   int thisCenterButton = digitalRead(CENTER_BUTTON);
+  
+  while (millis() - buttonTimer < BUTTON_DURATION) {
+    thisLeftButton   = digitalRead(LEFT_BUTTON);
+    thisRightButton  = digitalRead(RIGHT_BUTTON);
+    thisCenterButton = digitalRead(CENTER_BUTTON);
+  }
 
-  if (lastLeftButton == lastRightButton == lastCenterButton == LOW) {
-    if (thisLeftButton == HIGH && thisRightButton == thisCenterButton == LOW) {
+  if (lastLeftButton == LOW && lastRightButton == LOW && lastCenterButton == LOW) {
+    if (thisLeftButton == HIGH && thisRightButton == LOW && thisCenterButton == LOW) {
       eventHappened = true;
       eventParameter = 1;
     }
-    if (thisRightButton == HIGH && thisLeftButton == thisCenterButton == LOW) {
+    if (thisRightButton == HIGH && thisLeftButton == LOW && thisCenterButton == LOW) {
       eventHappened = true;
       eventParameter = 2;
     }
-    if (thisCenterButton == HIGH && thisRightButton == thisLeftButton == LOW) {
+    if (thisCenterButton == HIGH && thisRightButton == LOW && thisLeftButton == LOW) {
       eventHappened = true;
       eventParameter = 3;
     }
-    if (thisRightButton == thisLeftButton == HIGH && thisCenterButton == LOW) {
+    if (thisRightButton == HIGH && thisLeftButton == HIGH && thisCenterButton == LOW) {
       eventHappened = true;
       eventParameter = 4;
     }
-    if (thisRightButton == thisCenterButton == HIGH && thisLeftButton == LOW) {
+    if (thisRightButton == HIGH && thisCenterButton == HIGH && thisLeftButton == LOW) {
       eventHappened = true;
       eventParameter = 5;
     }
-    if (thisLeftButton == thisCenterButton == HIGH && thisRightButton == LOW) {
+    if (thisLeftButton == HIGH && thisCenterButton == HIGH && thisRightButton == LOW) {
       eventHappened = true;
       eventParameter = 6;
     }
-    if (thisLeftButton == thisRightButton == thisCenterButton == HIGH) {
+    if (thisLeftButton == HIGH && thisRightButton == HIGH && thisCenterButton == HIGH) {
       eventHappened = true;
       eventParameter = 7;
     }
@@ -275,23 +282,23 @@ void stateMachine(int event, int param) {
   SystemState_t nextState = currentState;
   switch (currentState) {
     case INIT:
+      nextState = RECEIVE;
       break;
 
     case RECEIVE:
-      if (event == EVENT_BUTTON){
-        nextState = SEND;
+      if (event == EVENT_BUTTON) {
         sendData(param);
       }
-          break;
+      break;
 
-      case DECODE:
-        break;
+    case DECODE:
+      break;
 
-      case SEND:
-        break;
+    case SEND:
+      break;
 
-      default:
-        break;
-    }
-    currentState = nextState;
+    default:
+      break;
   }
+  currentState = nextState;
+}
