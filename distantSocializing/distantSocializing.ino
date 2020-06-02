@@ -48,6 +48,7 @@ HttpClient PostClient = HttpClient(wifi, io_host, io_port);
 String phrase;
 String getMessage;
 String postMessage;
+unsigned long AWAITING_MESSAGE_DURATION = 10000;
 
 //---------------------------------
 //         OLED Variables
@@ -77,6 +78,7 @@ unsigned long buttonTimer;
 //Events Defitions
 #define EVENT_LIGHT  EventManager::kEventUser0
 #define EVENT_BUTTON EventManager::kEventUser1
+#define MESSAGE_RECEIVED EventManager::kEventUser2
 
 //Create the Event Manager
 EventManager eventManager;
@@ -95,12 +97,14 @@ void setup() {
 
   eventManager.addListener(EVENT_LIGHT, stateMachine);
   eventManager.addListener(EVENT_BUTTON, stateMachine);
+  eventManager.addListener(MESSAGE_RECEIVED, stateMachine);
 
   while (!Serial); //wait for serial to connect
 
   stateMachine(INIT, 0);
   waveTimer = millis();
   buttonTimer = millis();
+  messageTimer = millis(); 
 }
 
 void loop() {
@@ -114,6 +118,9 @@ void checkEvents() {
     waveTimer = millis(); // reset timer
   }
   checkButtons();
+  if (millis() - messageTimer > AWAITING_MESSAGE_DURATION) { 
+     checkMessages();
+  }
 }
 
 void checkLight() {
@@ -210,6 +217,29 @@ void checkButtons() {
   lastCenterButton = thisCenterButton;
 }
 
+/* CheckMessage
+    Gets data from feed once and checks if the message is from the other person.
+*/
+void checkMessages() {
+  bool eventHappened = false;  // Initialize our eventHappened flag to false
+  int eventParameter = 0;       // Change type as needed
+
+  // Create variable to hold last message
+  // note: static variables are only initialized once and keep their value between function calls.
+  static String lastMessage = "";   // variable to store the most recent message coming from the feed
+
+  getMessage = GetData();
+  if (lastMessage != thisMessage && getMessage.indexOf(your_name) == -1) { 
+    eventHappened = true;
+  }
+  
+  if (eventHappened == true) {
+    Serial.println("New Message received");
+    eventManager.queueEvent(MESSAGE_RECEIVED, eventParameter);
+  }
+  
+  lastMessage = thisMessage;
+}
 
 void sendData(int param) {
   
@@ -306,7 +336,8 @@ void stateMachine(int event, int param) {
       break;
 
     case SEND:
-      if (event == EVENT_BUTTON) {
+      if (event == MESSAGE_RECEIVED) {
+        Serial.println(getMessage);
         nextState = RECEIVE;
       }
       break;
@@ -317,17 +348,6 @@ void stateMachine(int event, int param) {
   currentState = nextState;
 }
 
-
-/* CheckMessage
-    Gets data from feed once and checks if the message is from the other person.
-*/
-void CheckMessage(){
-  getMessage = GetData();
-  if (getMessage.indexOf(your_name) == -1) { // the poster of this message was the other person
-    // display this message onto OLED screen!
-  }
-  // this was a self posted message, ignore
-}
 
 /* GetData
     Sends a get request to the adafruit feed server that is not from the original user and returns getMessage.
