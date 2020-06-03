@@ -48,7 +48,7 @@ HttpClient PostClient = HttpClient(wifi, io_host, io_port);
 String phrase;
 String getMessage;
 String postMessage;
-unsigned long AWAITING_MESSAGE_DURATION = 10000;
+unsigned long AWAITING_MESSAGE_DURATION = 10000; // 10 seconds
 
 //---------------------------------
 //         OLED Variables
@@ -75,10 +75,10 @@ unsigned long BUTTON_DURATION = 100;
 unsigned long waveTimer;
 unsigned long buttonTimer;
 
-//Events Defitions
+//Events Definitions
 #define EVENT_LIGHT  EventManager::kEventUser0
 #define EVENT_BUTTON EventManager::kEventUser1
-#define MESSAGE_RECEIVED EventManager::kEventUser2
+#define EVENT_MESSAGE EventManager::kEventUser2
 
 //Create the Event Manager
 EventManager eventManager;
@@ -97,7 +97,7 @@ void setup() {
 
   eventManager.addListener(EVENT_LIGHT, stateMachine);
   eventManager.addListener(EVENT_BUTTON, stateMachine);
-  eventManager.addListener(MESSAGE_RECEIVED, stateMachine);
+  eventManager.addListener(EVENT_MESSAGE, stateMachine);
 
   while (!Serial); //wait for serial to connect
 
@@ -120,6 +120,7 @@ void checkEvents() {
   checkButtons();
   if (millis() - messageTimer > AWAITING_MESSAGE_DURATION) { 
      checkMessages();
+     messageTimer = millis(); // reset timer
   }
 }
 
@@ -229,16 +230,16 @@ void checkMessages() {
   static String lastMessage = "";   // variable to store the most recent message coming from the feed
 
   getMessage = GetData();
-  if (lastMessage != thisMessage && getMessage.indexOf(your_name) == -1) { 
+  if (lastMessage != getMessage && getMessage.indexOf(your_name) == -1) { 
     eventHappened = true;
   }
   
   if (eventHappened == true) {
     Serial.println("New Message received");
-    eventManager.queueEvent(MESSAGE_RECEIVED, eventParameter);
+    eventManager.queueEvent(EVENT_MESSAGE, eventParameter);
   }
   
-  lastMessage = thisMessage;
+  lastMessage = getMessage;
 }
 
 void sendData(int param) {
@@ -325,9 +326,10 @@ void stateMachine(int event, int param) {
       break;
 
     case RECEIVE:
-      if (event == EVENT_BUTTON) {
-        postMessage = your_name + ": " + phrase;
-        PostData(postMessage);
+      if (event == EVENT_MESSAGE) {
+        Serial.println(getMessage);
+      }
+      if (event == EVENT_BUTTON) { //select
         nextState = SEND;
       }
       break;
@@ -336,8 +338,9 @@ void stateMachine(int event, int param) {
       break;
 
     case SEND:
-      if (event == MESSAGE_RECEIVED) {
-        Serial.println(getMessage);
+      if (event == EVENT_BUTTON) { // confirm sending
+        postMessage = your_name + ": " + phrase;
+        PostData(postMessage);
         nextState = RECEIVE;
       }
       break;
