@@ -11,18 +11,21 @@
 //---------------------------------
 //         Libraries
 //---------------------------------
-//Time Library
+// Time Library
 #include <TimeLib.h>
 
-//Ultrasonic Library
+// Ultrasonic Library
 #include "Ultrasonic.h"
 
-//Event Manager Library
+// Event Manager Library
 #include <EventManager.h>
 
 // OLED Libraries
 #include <U8g2lib.h>
 #include <U8x8lib.h>
+
+// Light Strip Library
+#include <Adafruit_NeoPixel.h>
 
 #ifdef U8X8_HAVE_HW_I2C
 #include <Wire.h>
@@ -63,15 +66,18 @@ U8G2_SH1106_128X64_NONAME_F_HW_I2C oled(U8G2_R0, U8X8_PIN_NONE);
 //  Event & State Variables
 //--------------------------
 
-#define LIGHT_SENSOR       A0 // put sensor on an analog pin
+#define LIGHT_SENSOR           A0 // put sensor on an analog pin
 #define LEFT_BUTTON             2
 #define CENTER_BUTTON           4
 #define RIGHT_BUTTON            6
 #define SELECT_BUTTON          16
+#define LED_ARRAY              A6
 
 
 #define LIGHT_THRESHOLD_LOW 350
 #define LIGHT_THRESHOLD_HIGH 400
+#define NUMPIXELS 10 // mumber of pixels on light array
+#define DELAYVAL 500 // Time (in milliseconds) to pause between pixels
 unsigned long WAVE_DURATION = 200;
 unsigned long BUTTON_DURATION = 100;
 unsigned long waveTimer;
@@ -85,6 +91,9 @@ unsigned long messageTimer;
 #define EVENT_SELECT  EventManager::kEventUser3
 #define EVENT_DECODED EventManager::kEventUser4
 
+// create LED Array object 
+Adafruit_NeoPixel pixels(NUMPIXELS, LED_ARRAY, NEO_GRB + NEO_KHZ800);
+
 //Create the Event Manager
 EventManager eventManager;
 
@@ -95,10 +104,13 @@ enum SystemState_t {INIT, RECEIVE, DECODE, SEND};
 SystemState_t currentState = INIT;
 
 void setup() {
+  
   Serial.begin(9600); //initialize serial
   while (!Serial && millis() < 6000); // wait for serial to connect (6s timeout)
   //setupWifi();
   setupOLED();
+  pixels.begin(); // initalize NeoPixel strip object (REQUIRED)
+  pixels.setBrightness(64); // set overall brightness of all the LEDs OF LED array to 1/4 brightness
 
   eventManager.addListener(EVENT_LIGHT, stateMachine);
   eventManager.addListener(EVENT_BUTTON, stateMachine);
@@ -556,6 +568,16 @@ void PostData(String myMessage) {
   }
 }
 
+// Fill LED array pixels one after another with a color, with
+// a delay time (in milliseconds) between pixels.
+void colorWipe(uint32_t color, int wait) {
+  for(int i=0; i<pixels.numPixels(); i++) { // For each pixel in strip...
+    pixels.setPixelColor(i, color);         //  Set pixel's color (in RAM)
+    pixels.show();                          //  Update strip to match
+    delay(wait);                           //  Pause for a moment
+  }
+}
+
 void stateMachine(int event, int param) {
   SystemState_t nextState = currentState;
   switch (currentState) {
@@ -571,6 +593,10 @@ void stateMachine(int event, int param) {
 
     case RECEIVE:
       if (event == EVENT_MESSAGE) {
+        // Something's in your inbox! Display a sequential fill of blue, then a blinking blue on the LED strip
+        pixels.clear(); 
+        colorWipe(pixels.Color(0,   0, 255), DELAYVAL);
+        
         Serial.println(getMessage);
         getPhraseNum(getMessage);
         //Serial.println("Try decoding message!");
@@ -584,21 +610,38 @@ void stateMachine(int event, int param) {
 
     case DECODE:
       if (event == EVENT_BUTTON) {
+        // Pending while you're trying to decode! Display a sequential fill of orange, then a blinking orange on the LED array
+        pixels.clear(); 
+        colorWipe(pixels.Color(255,69,0), DELAYVAL);
+        
         decodePhrase(param);
       }
       if (event == EVENT_DECODED) {
+        // SUCCESSLY DECODED! display steady green on the LED strip
+        pixels.clear(); 
+        colorWipe(pixels.Color(0,   255, 0), 0);
+                                
         Serial.println("Message Decoded!");
         Serial.println(getMessage);
-      }
+      } // shouldn't there be a an else case for event not decoded successfully? This would display blinking red on the LED array 
       break;
 
     case SEND:
+      // Pending while you're trying to send a message! Display a sequential fill of orange, then a blinking orange on the LED array
+      pixels.clear(); 
+      colorWipe(pixels.Color(255,69,0), DELAYVAL);
+      
       if (event == EVENT_BUTTON) { // confirm sending
         phrase = messages[param - 1];
         Serial.print("Message to send: ");
         Serial.println(phrase);
+        
       }
       if (event == EVENT_SELECT) {
+        // Message is sent! Display a steady green on LED array.
+        pixels.clear(); 
+        colorWipe(pixels.Color(0,   255, 0), 0);
+         
         postMessage = your_name + ": " + phrase;
         PostData(postMessage);
         nextState = RECEIVE;
@@ -607,6 +650,16 @@ void stateMachine(int event, int param) {
 
     default:
       Serial.println("Now how did this happen?");
+      
+      // Something went wrong! Display blinking red on the LED array.
+      for(int i=0; i<NUMPIXELS; i++) {
+        colorWipe(pixels.Color(255,   0,   0), 0);
+        pixels.show();
+        delay(DELAYVAL);
+        pixels.clear();
+        pixels.show();
+        delay(DELAYVAL);  
+      } 
       break;
   }
   currentState = nextState;
