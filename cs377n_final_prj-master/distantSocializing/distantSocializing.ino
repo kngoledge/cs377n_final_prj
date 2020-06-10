@@ -88,7 +88,7 @@ unsigned long messageTimer;
 #define EVENT_SELECT  EventManager::kEventUser3
 #define EVENT_DECODED EventManager::kEventUser4
 
-// create LED Array object 
+// create LED Array object
 Adafruit_NeoPixel pixels(NUMPIXELS, LED_ARRAY, NEO_GRB + NEO_KHZ800);
 
 
@@ -408,6 +408,15 @@ void decodePhrase(int param) {
     eventHappened = true;
   } else {
     Serial.println("Try again!");
+    // Something went wrong! Display blinking red on the LED array.
+    for (int i = 0; i < NUMPIXELS; i++) {
+      colorWipe(pixels.Color(255,   0,   0), 0);
+      pixels.show();
+      delay(DELAYVAL);
+      pixels.clear();
+      pixels.show();
+      delay(DELAYVAL);
+    }
   }
 
   if (eventHappened == true) {
