@@ -11,13 +11,10 @@
 //---------------------------------
 //         Libraries
 //---------------------------------
-// Time Library
+//Time Library
 #include <TimeLib.h>
 
-// Ultrasonic Library
-#include "Ultrasonic.h"
-
-// Event Manager Library
+//Event Manager Library
 #include <EventManager.h>
 
 // OLED Libraries
@@ -66,7 +63,7 @@ U8G2_SH1106_128X64_NONAME_F_HW_I2C oled(U8G2_R0, U8X8_PIN_NONE);
 //  Event & State Variables
 //--------------------------
 
-#define LIGHT_SENSOR           A0 // put sensor on an analog pin
+#define LIGHT_SENSOR       A0 // put sensor on an analog pin
 #define LEFT_BUTTON             2
 #define CENTER_BUTTON           4
 #define RIGHT_BUTTON            6
@@ -94,6 +91,7 @@ unsigned long messageTimer;
 // create LED Array object 
 Adafruit_NeoPixel pixels(NUMPIXELS, LED_ARRAY, NEO_GRB + NEO_KHZ800);
 
+
 //Create the Event Manager
 EventManager eventManager;
 
@@ -104,13 +102,14 @@ enum SystemState_t {INIT, RECEIVE, DECODE, SEND};
 SystemState_t currentState = INIT;
 
 void setup() {
-  
   Serial.begin(9600); //initialize serial
   while (!Serial && millis() < 6000); // wait for serial to connect (6s timeout)
-  //setupWifi();
+  setupWifi();
   setupOLED();
+
   pixels.begin(); // initalize NeoPixel strip object (REQUIRED)
   pixels.setBrightness(64); // set overall brightness of all the LEDs OF LED array to 1/4 brightness
+
 
   eventManager.addListener(EVENT_LIGHT, stateMachine);
   eventManager.addListener(EVENT_BUTTON, stateMachine);
@@ -127,8 +126,8 @@ void setup() {
 }
 
 void loop() {
-  // eventManager.processEvent();
-  // checkEvents();
+  eventManager.processEvent();
+  checkEvents();
 }
 
 void buildPhrases() {
@@ -235,7 +234,7 @@ void checkEvents() {
     checkLight();
     waveTimer = millis(); // reset timer
   }
-  if (millis() - messageTimer > AWAITING_MESSAGE_DURATION) {
+  if (millis() - messageTimer > AWAITING_MESSAGE_DURATION && currentState == RECEIVE) {
     checkMessages();
     messageTimer = millis(); // reset timer
   }
@@ -327,31 +326,31 @@ void checkButtons() {
   if (lastLeftButton == LOW && lastRightButton == LOW && lastCenterButton == LOW) {
     if (thisLeftButton == HIGH && thisRightButton == LOW && thisCenterButton == LOW) {
       eventHappened = true;
-      eventParameter = 1;
+      eventParameter = 0;
     }
     if (thisRightButton == HIGH && thisLeftButton == LOW && thisCenterButton == LOW) {
       eventHappened = true;
-      eventParameter = 2;
+      eventParameter = 1;
     }
     if (thisCenterButton == HIGH && thisRightButton == LOW && thisLeftButton == LOW) {
       eventHappened = true;
-      eventParameter = 3;
+      eventParameter = 2;
     }
     if (thisRightButton == HIGH && thisLeftButton == HIGH && thisCenterButton == LOW) {
       eventHappened = true;
-      eventParameter = 4;
+      eventParameter = 3;
     }
     if (thisRightButton == HIGH && thisCenterButton == HIGH && thisLeftButton == LOW) {
       eventHappened = true;
-      eventParameter = 5;
+      eventParameter = 4;
     }
     if (thisLeftButton == HIGH && thisCenterButton == HIGH && thisRightButton == LOW) {
       eventHappened = true;
-      eventParameter = 6;
+      eventParameter = 5;
     }
     if (thisLeftButton == HIGH && thisRightButton == HIGH && thisCenterButton == HIGH) {
       eventHappened = true;
-      eventParameter = 7;
+      eventParameter = 6;
     }
   }
 
@@ -389,9 +388,12 @@ void checkMessages() {
 }
 
 void getPhraseNum(String message) {
-  String testMessage = message.substring(message.indexOf(":"));
+  String testMessage = message.substring(message.indexOf(":") + 2);
+  Serial.println(testMessage);
   for (int i = 0; i < 7; i++) {
     if (messages[i] == testMessage) {
+      Serial.println(message[i]);
+      Serial.println(testMessage);
       phraseNum = i;
       break;
     }
@@ -400,21 +402,12 @@ void getPhraseNum(String message) {
 
 void decodePhrase(int param) {
   bool eventHappened = false;
-  int eventParameter = 0;
+  int eventParameter = param;
 
   if (param == phraseNum) {
     eventHappened = true;
   } else {
     Serial.println("Try again!");
-    // Something went wrong! Display blinking red on the LED array.
-    for(int i=0; i<NUMPIXELS; i++) {
-      colorWipe(pixels.Color(255,   0,   0), 0);
-      pixels.show();
-      delay(DELAYVAL);
-      pixels.clear();
-      pixels.show();
-      delay(DELAYVAL);  
-    } 
   }
 
   if (eventHappened == true) {
@@ -580,7 +573,7 @@ void PostData(String myMessage) {
 // Fill LED array pixels one after another with a color, with
 // a delay time (in milliseconds) between pixels.
 void colorWipe(uint32_t color, int wait) {
-  for(int i=0; i<pixels.numPixels(); i++) { // For each pixel in strip...
+  for (int i = 0; i < pixels.numPixels(); i++) { // For each pixel in strip...
     pixels.setPixelColor(i, color);         //  Set pixel's color (in RAM)
     pixels.show();                          //  Update strip to match
     delay(wait);                           //  Pause for a moment
@@ -603,15 +596,18 @@ void stateMachine(int event, int param) {
     case RECEIVE:
       if (event == EVENT_MESSAGE) {
         // Something's in your inbox! Display a sequential fill of blue, then a blinking blue on the LED strip
-        pixels.clear(); 
+        pixels.clear();
         colorWipe(pixels.Color(0,   0, 255), DELAYVAL);
-        
+
         Serial.println(getMessage);
         getPhraseNum(getMessage);
-        //Serial.println("Try decoding message!");
-        //nextState = DECODE;
+        Serial.println(phraseNum);
       }
-      if (event == EVENT_SELECT) { //select
+      if (event == EVENT_SELECT) { // push button to decode message
+        Serial.println("Ready to decode");
+        nextState = DECODE;
+      }
+      if (event == EVENT_LIGHT) { // wave to send message
         Serial.println("Ready for message input");
         nextState = SEND;
       }
@@ -620,37 +616,37 @@ void stateMachine(int event, int param) {
     case DECODE:
       if (event == EVENT_BUTTON) {
         // Pending while you're trying to decode! Display a sequential fill of orange, then a blinking orange on the LED array
-        pixels.clear(); 
-        colorWipe(pixels.Color(255,69,0), DELAYVAL);
-        
+        pixels.clear();
+        colorWipe(pixels.Color(255, 69, 0), DELAYVAL);
+
         decodePhrase(param);
       }
       if (event == EVENT_DECODED) {
         // SUCCESSLY DECODED! display steady green on the LED strip
-        pixels.clear(); 
+        pixels.clear();
         colorWipe(pixels.Color(0,   255, 0), 0);
-                                
+
         Serial.println("Message Decoded!");
         Serial.println(getMessage);
-      } // shouldn't there be a an else case for event not decoded successfully? This would display blinking red on the LED array 
+        nextState = RECEIVE;
+      }
       break;
 
     case SEND:
       // Pending while you're trying to send a message! Display a sequential fill of orange, then a blinking orange on the LED array
-      pixels.clear(); 
-      colorWipe(pixels.Color(255,69,0), DELAYVAL);
-      
+      pixels.clear();
+      colorWipe(pixels.Color(255, 69, 0), DELAYVAL);
+
       if (event == EVENT_BUTTON) { // confirm sending
-        phrase = messages[param - 1];
+        phrase = messages[param];
         Serial.print("Message to send: ");
         Serial.println(phrase);
-        
       }
       if (event == EVENT_SELECT) {
         // Message is sent! Display a steady green on LED array.
-        pixels.clear(); 
+        pixels.clear();
         colorWipe(pixels.Color(0,   255, 0), 0);
-         
+
         postMessage = your_name + ": " + phrase;
         PostData(postMessage);
         nextState = RECEIVE;
@@ -659,16 +655,15 @@ void stateMachine(int event, int param) {
 
     default:
       Serial.println("Now how did this happen?");
-      
       // Something went wrong! Display blinking red on the LED array.
-      for(int i=0; i<NUMPIXELS; i++) {
+      for (int i = 0; i < NUMPIXELS; i++) {
         colorWipe(pixels.Color(255,   0,   0), 0);
         pixels.show();
         delay(DELAYVAL);
         pixels.clear();
         pixels.show();
-        delay(DELAYVAL);  
-      } 
+        delay(DELAYVAL);
+      }
       break;
   }
   currentState = nextState;
