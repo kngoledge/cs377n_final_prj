@@ -15,7 +15,7 @@ const String get_io_feed_path = "/api/v2/" + io_username + "/feeds/" + io_feedke
 
 /************************ Server Config 2 *******************************/
 
-const String io_key2 = "aio_wwbq90YVVpkadpQxzhqOBrZ8DeLI";  // YOUR ADAFRUIT IO KEY - YOU MUST REPLACE
+const String io_key2 = "aio_PBuw96mB7ImYRNWWmK3QMZTm7lU7";  // YOUR ADAFRUIT IO KEY - YOU MUST REPLACE
 const String post_io_feed_path2 = "/api/v2/" + io_username + "/feeds/" + io_feedkey + "/data";
 const String get_io_feed_path2 = "/api/v2/" + io_username + "/feeds/" + io_feedkey + "/data/retain";
 
