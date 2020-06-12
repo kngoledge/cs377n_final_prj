@@ -71,8 +71,8 @@ U8G2_SH1106_128X64_NONAME_F_HW_I2C oled(U8G2_R0, U8X8_PIN_NONE);
 #define LED_ARRAY              A6
 
 
-#define LIGHT_THRESHOLD_LOW 350
-#define LIGHT_THRESHOLD_HIGH 400
+#define LIGHT_THRESHOLD_LOW 300
+#define LIGHT_THRESHOLD_HIGH 350
 #define NUMPIXELS 10 // mumber of pixels on light array
 #define DELAYVAL 500 // Time (in milliseconds) to pause between pixels
 unsigned long WAVE_DURATION = 200;
@@ -88,7 +88,7 @@ unsigned long messageTimer;
 #define EVENT_SELECT  EventManager::kEventUser3
 #define EVENT_DECODED EventManager::kEventUser4
 
-// create LED Array object 
+// create LED Array object
 Adafruit_NeoPixel pixels(NUMPIXELS, LED_ARRAY, NEO_GRB + NEO_KHZ800);
 
 
@@ -278,6 +278,7 @@ void checkLight() {
   static int lastLightValue = 0;   // variable to store the value coming from the sensor
 
   int thisLightValue = analogRead(LIGHT_SENSOR);
+  Serial.println(thisLightValue);
 
   if (lastLightValue < LIGHT_THRESHOLD_LOW && lastLightValue != 0) {
     if (thisLightValue > LIGHT_THRESHOLD_HIGH ) {
@@ -408,6 +409,15 @@ void decodePhrase(int param) {
     eventHappened = true;
   } else {
     Serial.println("Try again!");
+    // Something went wrong! Display blinking red on the LED array.
+    for (int i = 0; i < NUMPIXELS; i++) {
+      colorWipe(pixels.Color(255,   0,   0), 0);
+      pixels.show();
+      delay(DELAYVAL);
+      pixels.clear();
+      pixels.show();
+      delay(DELAYVAL);
+    }
   }
 
   if (eventHappened == true) {
@@ -595,7 +605,7 @@ void stateMachine(int event, int param) {
 
     case RECEIVE:
       if (event == EVENT_MESSAGE) {
-        // Something's in your inbox! Display a sequential fill of blue, then a blinking blue on the LED strip
+        // Something's in your inbox! Display a sequential fill of blue, then a steady blue on the LED strip
         pixels.clear();
         colorWipe(pixels.Color(0,   0, 255), DELAYVAL);
 
@@ -605,6 +615,15 @@ void stateMachine(int event, int param) {
       }
       if (event == EVENT_SELECT) { // push button to decode message
         Serial.println("Ready to decode");
+        pixels.clear();
+        for (int i = 0; i < 3; i++) {
+          colorWipe(pixels.Color(0,   0, 255), 0);
+          pixels.show();
+          delay(DELAYVAL);
+          pixels.clear();
+          pixels.show();
+          delay(DELAYVAL);
+        }
         nextState = DECODE;
       }
       if (event == EVENT_LIGHT) { // wave to send message
@@ -615,17 +634,24 @@ void stateMachine(int event, int param) {
 
     case DECODE:
       if (event == EVENT_BUTTON) {
-        // Pending while you're trying to decode! Display a sequential fill of orange, then a blinking orange on the LED array
+        // Pending while you're trying to decode! Display a sequential fill of orange, then a steady orange on the LED array
         pixels.clear();
-        colorWipe(pixels.Color(255, 69, 0), DELAYVAL);
+        colorWipe(pixels.Color(255, 165, 0), DELAYVAL);
 
         decodePhrase(param);
       }
       if (event == EVENT_DECODED) {
-        // SUCCESSLY DECODED! display steady green on the LED strip
+        displayMessage(phraseNum + 1);
+        // SUCCESSLY DECODED! display a blinking green on the LED strip
         pixels.clear();
-        colorWipe(pixels.Color(0,   255, 0), 0);
-
+        for (int i = 0; i < 3; i++) {
+          colorWipe(pixels.Color(0,   255, 0), 0);
+          pixels.show();
+          delay(DELAYVAL);
+          pixels.clear();
+          pixels.show();
+          delay(DELAYVAL);
+        }
         Serial.println("Message Decoded!");
         Serial.println(getMessage);
         nextState = RECEIVE;
@@ -633,9 +659,9 @@ void stateMachine(int event, int param) {
       break;
 
     case SEND:
-      // Pending while you're trying to send a message! Display a sequential fill of orange, then a blinking orange on the LED array
+      // Pending while you're trying to send a message! Display a sequential fill of orange, then a steady orange on the LED array
       pixels.clear();
-      colorWipe(pixels.Color(255, 69, 0), DELAYVAL);
+      colorWipe(pixels.Color(255, 165, 0), DELAYVAL);
 
       if (event == EVENT_BUTTON) { // confirm sending
         phrase = messages[param];
@@ -643,9 +669,16 @@ void stateMachine(int event, int param) {
         Serial.println(phrase);
       }
       if (event == EVENT_SELECT) {
-        // Message is sent! Display a steady green on LED array.
+        // Message is sent! Display a blinking green on LED array.
         pixels.clear();
-        colorWipe(pixels.Color(0,   255, 0), 0);
+        for (int i = 0; i < 3; i++) {
+          colorWipe(pixels.Color(0,   255, 0), 0);
+          pixels.show();
+          delay(DELAYVAL);
+          pixels.clear();
+          pixels.show();
+          delay(DELAYVAL);
+        }
 
         postMessage = your_name + ": " + phrase;
         PostData(postMessage);
