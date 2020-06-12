@@ -14,15 +14,15 @@
 //Time Library
 #include <TimeLib.h>
 
-//Ultrasonic Library
-#include "Ultrasonic.h"
-
 //Event Manager Library
 #include <EventManager.h>
 
 // OLED Libraries
 #include <U8g2lib.h>
 #include <U8x8lib.h>
+
+// Light Strip Library
+#include <Adafruit_NeoPixel.h>
 
 #ifdef U8X8_HAVE_HW_I2C
 #include <Wire.h>
@@ -68,10 +68,13 @@ U8G2_SH1106_128X64_NONAME_F_HW_I2C oled(U8G2_R0, U8X8_PIN_NONE);
 #define CENTER_BUTTON           4
 #define RIGHT_BUTTON            6
 #define SELECT_BUTTON          16
+#define LED_ARRAY              A6
 
 
-#define LIGHT_THRESHOLD_LOW 350
-#define LIGHT_THRESHOLD_HIGH 400
+#define LIGHT_THRESHOLD_LOW 300
+#define LIGHT_THRESHOLD_HIGH 350
+#define NUMPIXELS 10 // mumber of pixels on light array
+#define DELAYVAL 500 // Time (in milliseconds) to pause between pixels
 unsigned long WAVE_DURATION = 200;
 unsigned long BUTTON_DURATION = 100;
 unsigned long waveTimer;
@@ -84,6 +87,10 @@ unsigned long messageTimer;
 #define EVENT_MESSAGE EventManager::kEventUser2
 #define EVENT_SELECT  EventManager::kEventUser3
 #define EVENT_DECODED EventManager::kEventUser4
+
+// create LED Array object
+Adafruit_NeoPixel pixels(NUMPIXELS, LED_ARRAY, NEO_GRB + NEO_KHZ800);
+
 
 //Create the Event Manager
 EventManager eventManager;
@@ -98,7 +105,11 @@ void setup() {
   Serial.begin(9600); //initialize serial
   while (!Serial && millis() < 6000); // wait for serial to connect (6s timeout)
   setupWifi();
-  //setupOLED();
+  setupOLED();
+
+  pixels.begin(); // initalize NeoPixel strip object (REQUIRED)
+  pixels.setBrightness(64); // set overall brightness of all the LEDs OF LED array to 1/4 brightness
+
 
   eventManager.addListener(EVENT_LIGHT, stateMachine);
   eventManager.addListener(EVENT_BUTTON, stateMachine);
@@ -121,12 +132,12 @@ void loop() {
 
 void buildPhrases() {
   String phraseOne    = "I miss you!";
-  String phraseTwo    = "How are you?";
-  String phraseThree  = "I'm doing well!";
-  String phraseFour   = "Ok!";
-  String phraseFive   = "Message 1";
-  String phraseSix    = "Message 2";
-  String phraseSeven  = "Message 3";
+  String phraseTwo    = "Thinking of you!";
+  String phraseThree  = "I love you!";
+  String phraseFour   = "Hope you're doing well!";
+  String phraseFive   = "Let's catch a meal soon!";
+  String phraseSix    = "Okay!";
+  String phraseSeven  = "Call me when you get the chance!";
 
   messages[0] = phraseOne;
   messages[1] = phraseTwo;
@@ -137,6 +148,85 @@ void buildPhrases() {
   messages[6] = phraseSeven;
 }
 
+void displayMessage(int param) {
+  oled.setFont(u8g2_font_profont15_tf);
+
+  switch (param) {
+    case 1:
+      oled.clearBuffer();
+      oled.setCursor(35, 0);
+      oled.print("Message:");
+      oled.setCursor(25, 30);
+      oled.print("I miss you!");
+      oled.sendBuffer();
+      break;
+    case 2:
+      oled.clearBuffer();
+      oled.setCursor(35, 0);
+      oled.print("Message:");
+      oled.setCursor(7, 30);
+      oled.print("Thinking of you!");
+      oled.sendBuffer();
+      break;
+    case 3:
+      oled.clearBuffer();
+      oled.setCursor(35, 0);
+      oled.print("Message:");
+      oled.setCursor(25, 30);
+      oled.print("I love you!");
+      oled.sendBuffer();
+      break;
+    case 4:
+      oled.clearBuffer();
+      oled.setCursor(35, 0);
+      oled.print("Message:");
+      oled.setCursor(25, 20);
+      oled.print("Hope you're");
+      oled.setCursor(25, 40);
+      oled.print("doing well!");
+      oled.sendBuffer();
+      break;
+    case 5:
+      oled.clearBuffer();
+      oled.setCursor(35, 0);
+      oled.print("Message:");
+      oled.setCursor(18, 20);
+      oled.print("Let's catch a");
+      oled.setCursor(27, 40);
+      oled.print("meal soon!");
+      oled.sendBuffer();
+      break;
+    case 6:
+      oled.clearBuffer();
+      oled.setCursor(35, 0);
+      oled.print("Message:");
+      oled.setCursor(42, 30);
+      oled.print("Okay!");
+      oled.sendBuffer();
+      break;
+    case 7:
+      oled.clearBuffer();
+      oled.setCursor(35, 0);
+      oled.print("Message:");
+      oled.setCursor(5, 20);
+      oled.print("Call me when you");
+      oled.setCursor(10, 40);
+      oled.print("get the chance!");
+      oled.sendBuffer();
+      break;
+    case 8:
+      break;
+    case 9:
+      oled.clearBuffer();
+      oled.setCursor(5, 25);
+      oled.print("Message Decoded!");
+      oled.sendBuffer();
+      break;
+    default:
+      break;
+  }
+
+}
 void checkEvents() {
   checkButtons();
   checkSelect();
@@ -144,7 +234,7 @@ void checkEvents() {
     checkLight();
     waveTimer = millis(); // reset timer
   }
-  if (millis() - messageTimer > AWAITING_MESSAGE_DURATION) {
+  if (millis() - messageTimer > AWAITING_MESSAGE_DURATION && currentState == RECEIVE) {
     checkMessages();
     messageTimer = millis(); // reset timer
   }
@@ -188,6 +278,7 @@ void checkLight() {
   static int lastLightValue = 0;   // variable to store the value coming from the sensor
 
   int thisLightValue = analogRead(LIGHT_SENSOR);
+  Serial.println(thisLightValue);
 
   if (lastLightValue < LIGHT_THRESHOLD_LOW && lastLightValue != 0) {
     if (thisLightValue > LIGHT_THRESHOLD_HIGH ) {
@@ -236,31 +327,31 @@ void checkButtons() {
   if (lastLeftButton == LOW && lastRightButton == LOW && lastCenterButton == LOW) {
     if (thisLeftButton == HIGH && thisRightButton == LOW && thisCenterButton == LOW) {
       eventHappened = true;
-      eventParameter = 1;
+      eventParameter = 0;
     }
     if (thisRightButton == HIGH && thisLeftButton == LOW && thisCenterButton == LOW) {
       eventHappened = true;
-      eventParameter = 2;
+      eventParameter = 1;
     }
     if (thisCenterButton == HIGH && thisRightButton == LOW && thisLeftButton == LOW) {
       eventHappened = true;
-      eventParameter = 3;
+      eventParameter = 2;
     }
     if (thisRightButton == HIGH && thisLeftButton == HIGH && thisCenterButton == LOW) {
       eventHappened = true;
-      eventParameter = 4;
+      eventParameter = 3;
     }
     if (thisRightButton == HIGH && thisCenterButton == HIGH && thisLeftButton == LOW) {
       eventHappened = true;
-      eventParameter = 5;
+      eventParameter = 4;
     }
     if (thisLeftButton == HIGH && thisCenterButton == HIGH && thisRightButton == LOW) {
       eventHappened = true;
-      eventParameter = 6;
+      eventParameter = 5;
     }
     if (thisLeftButton == HIGH && thisRightButton == HIGH && thisCenterButton == HIGH) {
       eventHappened = true;
-      eventParameter = 7;
+      eventParameter = 6;
     }
   }
 
@@ -298,29 +389,41 @@ void checkMessages() {
 }
 
 void getPhraseNum(String message) {
-  String testMessage = message.substring(message.indexOf(":"));
+  String testMessage = message.substring(message.indexOf(":") + 2);
+  Serial.println(testMessage);
   for (int i = 0; i < 7; i++) {
     if (messages[i] == testMessage) {
+      Serial.println(message[i]);
+      Serial.println(testMessage);
       phraseNum = i;
       break;
     }
   }
 }
 
-void decodePhrase(int param){
+void decodePhrase(int param) {
   bool eventHappened = false;
-  int eventParameter = 0;
+  int eventParameter = param;
 
-  if(param == phraseNum){
+  if (param == phraseNum) {
     eventHappened = true;
   } else {
     Serial.println("Try again!");
+    // Something went wrong! Display blinking red on the LED array.
+    for (int i = 0; i < NUMPIXELS; i++) {
+      colorWipe(pixels.Color(255,   0,   0), 0);
+      pixels.show();
+      delay(DELAYVAL);
+      pixels.clear();
+      pixels.show();
+      delay(DELAYVAL);
+    }
   }
 
-  if(eventHappened == true){
+  if (eventHappened == true) {
     eventManager.queueEvent(EVENT_DECODED, eventParameter);
   }
-  
+
 }
 
 void setupWifi() {
@@ -477,6 +580,16 @@ void PostData(String myMessage) {
   }
 }
 
+// Fill LED array pixels one after another with a color, with
+// a delay time (in milliseconds) between pixels.
+void colorWipe(uint32_t color, int wait) {
+  for (int i = 0; i < pixels.numPixels(); i++) { // For each pixel in strip...
+    pixels.setPixelColor(i, color);         //  Set pixel's color (in RAM)
+    pixels.show();                          //  Update strip to match
+    delay(wait);                           //  Pause for a moment
+  }
+}
+
 void stateMachine(int event, int param) {
   SystemState_t nextState = currentState;
   switch (currentState) {
@@ -492,34 +605,73 @@ void stateMachine(int event, int param) {
 
     case RECEIVE:
       if (event == EVENT_MESSAGE) {
+        // Something's in your inbox! Display a sequential fill of blue, then a steady blue on the LED strip
+        pixels.clear();
+        colorWipe(pixels.Color(0,   0, 255), DELAYVAL);
+
         Serial.println(getMessage);
         getPhraseNum(getMessage);
-        //Serial.println("Try decoding message!");
-        //nextState = DECODE;
+        Serial.println(phraseNum);
       }
-      if (event == EVENT_SELECT) { //select
+      if (event == EVENT_SELECT) { // push button to decode message
+        Serial.println("Ready to decode");
+        nextState = DECODE;
+      }
+      if (event == EVENT_LIGHT) { // wave to send message
         Serial.println("Ready for message input");
         nextState = SEND;
       }
       break;
 
     case DECODE:
-      if(event == EVENT_BUTTON){
+      if (event == EVENT_BUTTON) {
+        // Pending while you're trying to decode! Display a sequential fill of orange, then a steady orange on the LED array
+        pixels.clear();
+        colorWipe(pixels.Color(255,165,0), DELAYVAL);
+
         decodePhrase(param);
       }
-      if(event == EVENT_DECODED) {
+      if (event == EVENT_DECODED) {
+        displayMessage(phraseNum+1);
+        // SUCCESSLY DECODED! display a blinking green on the LED strip
+        pixels.clear();
+        for (int i = 0; i < 3; i++) {
+          colorWipe(pixels.Color(0,   255, 0), 0);
+          pixels.show();
+          delay(DELAYVAL);
+          pixels.clear();
+          pixels.show();
+          delay(DELAYVAL);
+        }
         Serial.println("Message Decoded!");
         Serial.println(getMessage);
+        oled.clearBuffer();
+        nextState = RECEIVE;
       }
       break;
 
     case SEND:
+      // Pending while you're trying to send a message! Display a sequential fill of orange, then a steady orange on the LED array
+      pixels.clear();
+      colorWipe(pixels.Color(255,165,0), DELAYVAL);
+
       if (event == EVENT_BUTTON) { // confirm sending
-        phrase = messages[param - 1];
+        phrase = messages[param];
         Serial.print("Message to send: ");
         Serial.println(phrase);
       }
       if (event == EVENT_SELECT) {
+        // Message is sent! Display a blinking green on LED array.
+        pixels.clear();
+        for (int i = 0; i < 3; i++) {
+          colorWipe(pixels.Color(0,   255, 0), 0);
+          pixels.show();
+          delay(DELAYVAL);
+          pixels.clear();
+          pixels.show();
+          delay(DELAYVAL);
+        }
+
         postMessage = your_name + ": " + phrase;
         PostData(postMessage);
         nextState = RECEIVE;
@@ -527,6 +679,16 @@ void stateMachine(int event, int param) {
       break;
 
     default:
+      Serial.println("Now how did this happen?");
+      // Something went wrong! Display blinking red on the LED array.
+      for (int i = 0; i < NUMPIXELS; i++) {
+        colorWipe(pixels.Color(255,   0,   0), 0);
+        pixels.show();
+        delay(DELAYVAL);
+        pixels.clear();
+        pixels.show();
+        delay(DELAYVAL);
+      }
       break;
   }
   currentState = nextState;
